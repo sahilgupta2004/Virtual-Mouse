@@ -1,0 +1,104 @@
+import cv2
+import mediapipe as mp
+import pyautogui
+
+cap = cv2.VideoCapture(0)
+
+mp_hands = mp.solutions.hands
+hand_detector = mp_hands.Hands()
+drawing_utils = mp.solutions.drawing_utils
+
+screen_width, screen_height = pyautogui.size()
+
+plocx, plocy = 0, 0
+clocx, clocy = 0, 0
+smoothening = 12
+
+def calculate_distance(x1, y1, x2, y2):
+    return ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5
+
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        break
+
+    frame = cv2.flip(frame, 1)
+    frame_height, frame_width, _ = frame.shape
+
+    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    output = hand_detector.process(rgb_frame)
+    hands = output.multi_hand_landmarks
+
+    if hands:
+        for hand in hands:
+            drawing_utils.draw_landmarks(frame, hand, mp_hands.HAND_CONNECTIONS)
+            landmarks = hand.landmark
+
+            index_x, index_y = 0, 0
+            thumb_x, thumb_y = 0, 0
+            middle_x, middle_y = 0, 0
+            ring_x, ring_y = 0, 0
+            pinky_x, pinky_y = 0, 0
+
+            for id, landmark in enumerate(landmarks):
+                x = int(landmark.x * frame_width)
+                y = int(landmark.y * frame_height)
+
+                if id == 8:
+                    cv2.circle(frame, (x, y), 15, (0, 255, 255), cv2.FILLED)
+                    index_x = (screen_width / frame_width) * x
+                    index_y = (screen_height / frame_height) * y
+                    clocx = plocx + (index_x - plocx) / smoothening
+                    clocy = plocy + (index_y - plocy) / smoothening
+                    pyautogui.moveTo(clocx, clocy)
+                    plocx, plocy = clocx, clocy
+
+                if id == 4:
+                    cv2.circle(frame, (x, y), 15, (0, 255, 255), cv2.FILLED)
+                    thumb_x = (screen_width / frame_width) * x
+                    thumb_y = (screen_height / frame_height) * y
+
+                if id == 12:
+                    cv2.circle(frame, (x, y), 15, (0, 255, 0), cv2.FILLED)
+                    middle_x = (screen_width / frame_width) * x
+                    middle_y = (screen_height / frame_height) * y
+
+                if id == 16:
+                    cv2.circle(frame, (x, y), 15, (255, 0, 0), cv2.FILLED)
+                    ring_x = (screen_width / frame_width) * x
+                    ring_y = (screen_height / frame_height) * y
+
+                if id == 20:
+                    cv2.circle(frame, (x, y), 15, (255, 0, 255), cv2.FILLED)
+                    pinky_x = (screen_width / frame_width) * x
+                    pinky_y = (screen_height / frame_height) * y
+
+            if abs(index_y - thumb_y) < 70:
+                pyautogui.click()
+                pyautogui.sleep(1)
+
+            if abs(middle_y - index_y) < 70:
+                if middle_y < index_y:
+                    pyautogui.scroll(5)
+                else:
+                    pyautogui.scroll(-5)
+
+            if abs(ring_y - index_y) < 70:
+                pyautogui.rightClick()
+                pyautogui.sleep(1)
+
+            if abs(pinky_y - index_y) < 70:
+                if pinky_y < index_y:
+                    pyautogui.press('volumeup')
+                else:
+                    pyautogui.press('volumedown')
+
+    cv2.imshow('Virtual Mouse', frame)
+
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+cap.release()
+cv2.destroyAllWindows()
+
+
